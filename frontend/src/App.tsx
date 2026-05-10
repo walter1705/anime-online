@@ -30,7 +30,8 @@ function App() {
   const [episodes, setEpisodes] = useState<ProviderEpisode[]>([])
   const [selectedEpisode, setSelectedEpisode] = useState<ProviderEpisode | null>(null)
   const [sources, setSources] = useState<ResolvedServerSources[]>([])
-  const [selectedSource, setSelectedSource] = useState<string | null>(null)
+  const [selectedSourceUrl, setSelectedSourceUrl] = useState<string | null>(null)
+  const [selectedSourceType, setSelectedSourceType] = useState<'embed' | 'hls' | 'mp4' | null>(null)
   const [isDetailLoading, setIsDetailLoading] = useState(false)
 
   const handleSearch = useCallback(async (e?: React.FormEvent) => {
@@ -133,7 +134,8 @@ function App() {
   const fetchEpisodeSources = async (episode: ProviderEpisode) => {
     setSelectedEpisode(episode)
     setSources([])
-    setSelectedSource(null)
+    setSelectedSourceUrl(null)
+    setSelectedSourceType(null)
     
     try {
       // Assuming first provider again
@@ -147,7 +149,8 @@ function App() {
         setSources(results)
         // Auto-select first source if available
         if (results[0]?.sources[0]) {
-          setSelectedSource(results[0].sources[0].url)
+          setSelectedSourceUrl(results[0].sources[0].url)
+          setSelectedSourceType(results[0].sources[0].type)
         }
       }
     } catch (err) {
@@ -240,21 +243,22 @@ function App() {
                     {selectedEpisode ? `Watching Episode ${selectedEpisode.number}` : 'Select an Episode'}
                   </h3>
                   
-                  {selectedSource ? (
+                  {selectedSourceUrl ? (
                     <div className="aspect-video bg-black rounded-2xl overflow-hidden border border-zinc-800 shadow-2xl relative">
-                       {/* If it's an HLS or MP4 stream, we should use a video player, but for now we'll stick to iframe or a simple video tag if possible.
-                           Based on openapi, PlayableSource can be 'hls', 'mp4', or 'embed'. */}
-                       {sources.find(s => s.sources.find(src => src.url === selectedSource))?.sources.find(src => src.url === selectedSource)?.type === 'embed' ? (
+                       {selectedSourceType === 'embed' ? (
                          <iframe 
-                           src={selectedSource} 
-                           className="w-full h-full" 
+                           src={selectedSourceUrl} 
+                           className="w-full h-full border-0" 
                            allowFullScreen 
+                           allow="autoplay; encrypted-media; picture-in-picture"
                            title="Player"
                          />
                        ) : (
                          <video 
-                           src={selectedSource} 
+                           key={selectedSourceUrl}
+                           src={selectedSourceUrl} 
                            controls 
+                           autoPlay
                            className="w-full h-full"
                            poster={selectedAnime.posterImage || ''}
                          />
@@ -268,14 +272,17 @@ function App() {
 
                   {sources.length > 0 && (
                     <div className="mt-4 flex flex-wrap gap-2">
-                      <span className="text-sm text-zinc-500 mr-2 self-center">Servers:</span>
+                      <span className="text-sm text-zinc-500 mr-2 self-center font-bold uppercase text-[10px] tracking-wider">Servers:</span>
                       {sources.map((s, idx) => (
                         <button
                           key={idx}
-                          onClick={() => setSelectedSource(s.sources[0]?.url)}
+                          onClick={() => {
+                            setSelectedSourceUrl(s.sources[0]?.url);
+                            setSelectedSourceType(s.sources[0]?.type);
+                          }}
                           className={cn(
-                            "px-4 py-2 rounded-lg text-xs font-bold transition-all",
-                            selectedSource === s.sources[0]?.url ? "bg-purple-600 text-white" : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"
+                            "px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-tight transition-all",
+                            selectedSourceUrl === s.sources[0]?.url ? "bg-purple-600 text-white shadow-[0_0_10px_rgba(147,51,234,0.4)]" : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"
                           )}
                         >
                           {s.server.name}
