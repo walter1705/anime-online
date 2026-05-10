@@ -1,0 +1,456 @@
+openapi: 3.1.0
+info:
+  title: Anime Online API
+  version: 0.1.0
+  description: |
+    Backend-first API for anime metadata, provider scraping, downloads, servers, and stream source resolution.
+
+    Contract rule:
+    If any endpoint is added, removed, renamed, or its request/response shape changes, `openapi.yaml` MUST be updated in the same change.
+
+    The API is expected to follow an open/closed approach:
+    extend behavior without breaking existing documented contracts when possible.
+servers:
+  - url: http://localhost:3000
+tags:
+  - name: System
+  - name: Metadata
+  - name: Providers
+  - name: Streams
+paths:
+  /:
+    get:
+      tags: [System]
+      summary: Backend overview
+      operationId: getOverview
+      responses:
+        '200':
+          description: Service overview
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BackendOverview'
+  /health:
+    get:
+      tags: [System]
+      summary: Health status
+      operationId: getHealth
+      responses:
+        '200':
+          description: Health payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+  /metadata/anime/search:
+    get:
+      tags: [Metadata]
+      summary: Search anime metadata through Jikan
+      operationId: searchAnimeMetadata
+      parameters:
+        - in: query
+          name: q
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 25
+      responses:
+        '200':
+          description: Metadata search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetadataSearchResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /providers:
+    get:
+      tags: [Providers]
+      summary: List providers
+      operationId: listProviders
+      parameters:
+        - in: query
+          name: capability
+          required: false
+          schema:
+            $ref: '#/components/schemas/ProviderCapability'
+      responses:
+        '200':
+          description: Provider list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  providers:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ProviderDescriptor'
+                required: [providers]
+  /providers/{key}:
+    get:
+      tags: [Providers]
+      summary: Get provider descriptor
+      operationId: getProvider
+      parameters:
+        - $ref: '#/components/parameters/ProviderKey'
+      responses:
+        '200':
+          description: Provider descriptor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderDescriptor'
+  /providers/{key}/anime/{slug}:
+    get:
+      tags: [Providers]
+      summary: Get provider anime detail
+      operationId: getProviderAnimeDetail
+      parameters:
+        - $ref: '#/components/parameters/ProviderKey'
+        - $ref: '#/components/parameters/AnimeSlug'
+      responses:
+        '200':
+          description: Anime detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderAnimeDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /providers/{key}/anime/{slug}/episodes:
+    get:
+      tags: [Providers]
+      summary: Get provider episodes
+      operationId: getProviderEpisodes
+      parameters:
+        - $ref: '#/components/parameters/ProviderKey'
+        - $ref: '#/components/parameters/AnimeSlug'
+      responses:
+        '200':
+          description: Episode list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  episodes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ProviderEpisode'
+                required: [episodes]
+  /providers/{key}/episodes/{episodeSlug}/servers:
+    get:
+      tags: [Providers]
+      summary: Get provider episode servers
+      operationId: getProviderServers
+      parameters:
+        - $ref: '#/components/parameters/ProviderKey'
+        - $ref: '#/components/parameters/EpisodeSlug'
+      responses:
+        '200':
+          description: Server list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  servers:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ProviderServer'
+                required: [servers]
+  /providers/{key}/episodes/{episodeSlug}/downloads:
+    get:
+      tags: [Providers]
+      summary: Get provider episode downloads
+      operationId: getProviderDownloads
+      parameters:
+        - $ref: '#/components/parameters/ProviderKey'
+        - $ref: '#/components/parameters/EpisodeSlug'
+      responses:
+        '200':
+          description: Download links
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  downloads:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DownloadLink'
+                required: [downloads]
+  /providers/{key}/episodes/{episodeSlug}/sources:
+    get:
+      tags: [Providers]
+      summary: Resolve all provider servers into playable sources when possible
+      operationId: getProviderSources
+      parameters:
+        - $ref: '#/components/parameters/ProviderKey'
+        - $ref: '#/components/parameters/EpisodeSlug'
+      responses:
+        '200':
+          description: Resolved sources grouped by server
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ResolvedServerSources'
+                required: [results]
+  /streams/resolve:
+    get:
+      tags: [Streams]
+      summary: Resolve a single stream URL
+      operationId: resolveStream
+      parameters:
+        - in: query
+          name: url
+          required: true
+          schema:
+            type: string
+            format: uri
+        - in: query
+          name: name
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Resolved sources
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sources:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PlayableSource'
+                required: [sources]
+        '400':
+          $ref: '#/components/responses/BadRequest'
+components:
+  parameters:
+    ProviderKey:
+      in: path
+      name: key
+      required: true
+      schema:
+        type: string
+    AnimeSlug:
+      in: path
+      name: slug
+      required: true
+      schema:
+        type: string
+    EpisodeSlug:
+      in: path
+      name: episodeSlug
+      required: true
+      schema:
+        type: string
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    BackendOverview:
+      type: object
+      properties:
+        name:
+          type: string
+        status:
+          type: string
+        priorities:
+          type: array
+          items:
+            type: string
+      required: [name, status, priorities]
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+        service:
+          type: string
+        cache:
+          $ref: '#/components/schemas/CacheStatus'
+      required: [status, service, cache]
+    CacheStatus:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum: [disabled, redis]
+        connected:
+          type: boolean
+      required: [mode, connected]
+    MetadataSearchResponse:
+      type: object
+      properties:
+        source:
+          type: string
+        query:
+          type: string
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnimeMetadataSummary'
+      required: [source, query, results]
+    AnimeMetadataSummary:
+      type: object
+      properties:
+        malId:
+          type: integer
+        title:
+          type: string
+        titleEnglish:
+          type: string
+          nullable: true
+        titleJapanese:
+          type: string
+          nullable: true
+        synopsis:
+          type: string
+          nullable: true
+        posterImage:
+          type: string
+          nullable: true
+        score:
+          type: number
+          nullable: true
+        year:
+          type: integer
+          nullable: true
+        status:
+          type: string
+          nullable: true
+        type:
+          type: string
+          nullable: true
+        episodes:
+          type: integer
+          nullable: true
+        genres:
+          type: array
+          items:
+            type: string
+      required:
+        [malId, title, titleEnglish, titleJapanese, synopsis, posterImage, score, year, status, type, episodes, genres]
+    ProviderCapability:
+      type: string
+      enum: [search, anime-detail, episode-list, server-list, stream-resolution, download-links]
+    ProviderDescriptor:
+      type: object
+      properties:
+        key:
+          type: string
+        name:
+          type: string
+        baseUrl:
+          type: string
+        language:
+          type: string
+        capabilities:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProviderCapability'
+      required: [key, name, baseUrl, language, capabilities]
+    ProviderAnimeDetail:
+      type: object
+      properties:
+        title:
+          type: string
+        slug:
+          type: string
+        url:
+          type: string
+        synopsis:
+          type: string
+        poster:
+          type: string
+        genres:
+          type: array
+          items:
+            type: string
+        status:
+          type: string
+      required: [title, slug, url]
+    ProviderEpisode:
+      type: object
+      properties:
+        number:
+          type: integer
+        slug:
+          type: string
+        url:
+          type: string
+      required: [number, slug, url]
+    ProviderServer:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+          enum: [embed, download, unknown]
+        url:
+          type: string
+      required: [name, type]
+    DownloadLink:
+      type: object
+      properties:
+        name:
+          type: string
+        url:
+          type: string
+      required: [name, url]
+    PlayableSource:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [hls, mp4, embed]
+        url:
+          type: string
+        quality:
+          type: string
+      required: [type, url]
+    ResolvedServerSources:
+      type: object
+      properties:
+        server:
+          $ref: '#/components/schemas/ProviderServer'
+        sources:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlayableSource'
+      required: [server, sources]
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+        error:
+          type: string
+        statusCode:
+          type: integer
+      required: [message]
