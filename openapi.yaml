@@ -69,6 +69,50 @@ paths:
                 $ref: '#/components/schemas/MetadataSearchResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
+  /metadata/anime/seasonal:
+    get:
+      tags: [Metadata]
+      summary: Get current seasonal anime
+      operationId: getSeasonalAnime
+      responses:
+        '200':
+          description: Seasonal anime list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetadataListResponse'
+  /metadata/anime/trending:
+    get:
+      tags: [Metadata]
+      summary: Get trending (top airing) anime
+      operationId: getTrendingAnime
+      responses:
+        '200':
+          description: Trending anime list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetadataListResponse'
+  /metadata/anime/{malId}:
+    get:
+      tags: [Metadata]
+      summary: Get full anime metadata by MAL ID
+      operationId: getAnimeMetadataDetail
+      parameters:
+        - in: path
+          name: malId
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Anime metadata detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnimeMetadataSummary'
+        '400':
+          $ref: '#/components/responses/BadRequest'
   /providers:
     get:
       tags: [Providers]
@@ -93,6 +137,32 @@ paths:
                     items:
                       $ref: '#/components/schemas/ProviderDescriptor'
                 required: [providers]
+  /providers/search/all:
+    get:
+      tags: [Providers]
+      summary: Search anime across all providers
+      operationId: searchAllProviders
+      parameters:
+        - in: query
+          name: q
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Global search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/GlobalProviderSearchResult'
+                required: [results]
+        '400':
+          $ref: '#/components/responses/BadRequest'
   /providers/{key}:
     get:
       tags: [Providers]
@@ -107,6 +177,55 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProviderDescriptor'
+  /providers/{key}/episodes/recent:
+    get:
+      tags: [Providers]
+      summary: Get provider recent episodes
+      operationId: getRecentEpisodes
+      parameters:
+        - $ref: '#/components/parameters/ProviderKey'
+      responses:
+        '200':
+          description: Recent episode list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  episodes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RecentEpisode'
+                required: [episodes]
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /providers/{key}/search:
+    get:
+      tags: [Providers]
+      summary: Search anime in a specific provider
+      operationId: searchProvider
+      parameters:
+        - $ref: '#/components/parameters/ProviderKey'
+        - in: query
+          name: q
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Provider search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ProviderSearchResult'
+                required: [results]
+        '400':
+          $ref: '#/components/responses/BadRequest'
   /providers/{key}/anime/{slug}:
     get:
       tags: [Providers]
@@ -311,6 +430,16 @@ components:
           items:
             $ref: '#/components/schemas/AnimeMetadataSummary'
       required: [source, query, results]
+    MetadataListResponse:
+      type: object
+      properties:
+        source:
+          type: string
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnimeMetadataSummary'
+      required: [source, results]
     AnimeMetadataSummary:
       type: object
       properties:
@@ -353,7 +482,7 @@ components:
         [malId, title, titleEnglish, titleJapanese, synopsis, posterImage, score, year, status, type, episodes, genres]
     ProviderCapability:
       type: string
-      enum: [search, anime-detail, episode-list, server-list, stream-resolution, download-links]
+      enum: [search, recent-episodes, anime-detail, episode-list, server-list, stream-resolution, download-links]
     ProviderDescriptor:
       type: object
       properties:
@@ -370,6 +499,24 @@ components:
           items:
             $ref: '#/components/schemas/ProviderCapability'
       required: [key, name, baseUrl, language, capabilities]
+    ProviderSearchResult:
+      type: object
+      properties:
+        title:
+          type: string
+        slug:
+          type: string
+        url:
+          type: string
+      required: [title, slug, url]
+    GlobalProviderSearchResult:
+      allOf:
+        - $ref: '#/components/schemas/ProviderSearchResult'
+        - type: object
+          properties:
+            provider:
+              type: string
+          required: [provider]
     ProviderAnimeDetail:
       type: object
       properties:
@@ -400,6 +547,19 @@ components:
         url:
           type: string
       required: [number, slug, url]
+    RecentEpisode:
+      allOf:
+        - $ref: '#/components/schemas/ProviderEpisode'
+        - type: object
+          properties:
+            animeTitle:
+              type: string
+            animeSlug:
+              type: string
+            poster:
+              type: string
+              nullable: true
+          required: [animeTitle, animeSlug]
     ProviderServer:
       type: object
       properties:
