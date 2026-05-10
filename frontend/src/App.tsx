@@ -104,9 +104,9 @@ const Browse = ({ results, isLoading, error, searchQuery, setSearchQuery, handle
               </div>
             )}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-x-6 gap-y-10">
-              {results.map((anime: any) => (
+              {results.map((anime: any, index: number) => (
                 <div 
-                  key={anime.malId} 
+                  key={`${anime.malId}-${index}`} 
                   onClick={() => navigate(`/anime/${anime.malId}`, { state: { anime } })}
                   className="group cursor-pointer flex flex-col h-full"
                 >
