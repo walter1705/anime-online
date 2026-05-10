@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Routes, Route, useNavigate, useParams, Link } from 'react-router-dom'
+import { Routes, Route, useNavigate, useParams } from 'react-router-dom'
 import { Search, Tv, BookOpen, Loader2, ArrowLeft, Play, Info } from 'lucide-react'
 import type { 
   MetadataSearchResponse, 
   AnimeMetadataSummary, 
-  ProviderDescriptor, 
+  ProviderDescriptor,
   ProviderEpisode, 
   ResolvedServerSources 
 } from './types'
@@ -16,6 +16,21 @@ function cn(...inputs: ClassValue[]) {
 }
 
 const API_BASE_URL = 'http://localhost:3000'
+
+type EpisodeWithProvider = ProviderEpisode & {
+  providerKey: string;
+  providerName: string;
+}
+
+type BrowseProps = {
+  results: AnimeMetadataSummary[];
+  isLoading: boolean;
+  error: string | null;
+  searchQuery: string;
+  setSearchQuery: (query: string) => void;
+  handleSearch: (e?: React.FormEvent) => void;
+  activeTab: 'anime' | 'manga';
+}
 
 // --- Components ---
 
@@ -60,7 +75,7 @@ const Sidebar = ({ activeTab, setActiveTab }: { activeTab: string, setActiveTab:
   );
 };
 
-const Browse = ({ results, isLoading, error, searchQuery, setSearchQuery, handleSearch, activeTab }: any) => {
+const Browse = ({ results, isLoading, error, searchQuery, setSearchQuery, handleSearch, activeTab }: BrowseProps) => {
   const navigate = useNavigate();
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -104,7 +119,7 @@ const Browse = ({ results, isLoading, error, searchQuery, setSearchQuery, handle
               </div>
             )}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-x-6 gap-y-10">
-              {results.map((anime: any, index: number) => (
+              {results.map((anime, index) => (
                 <div 
                   key={`${anime.malId}-${index}`} 
                   onClick={() => navigate(`/anime/${anime.malId}`, { state: { anime } })}
@@ -133,54 +148,58 @@ const Detail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [anime, setAnime] = useState<AnimeMetadataSummary | null>(null);
-  const [episodes, setEpisodes] = useState<ProviderEpisode[]>([]);
-  const [selectedEpisode, setSelectedEpisode] = useState<ProviderEpisode | null>(null);
+  const [episodes, setEpisodes] = useState<EpisodeWithProvider[]>([]);
+  const [selectedEpisode, setSelectedEpisode] = useState<EpisodeWithProvider | null>(null);
   const [sources, setSources] = useState<ResolvedServerSources[]>([]);
   const [selectedSourceUrl, setSelectedSourceUrl] = useState<string | null>(null);
   const [selectedSourceType, setSelectedSourceType] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchDetails = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      // 1. Get metadata
-      const metaResp = await fetch(`${API_BASE_URL}/metadata/anime/${id}`);
-      const metaData = await metaResp.json();
-      setAnime(metaData);
+  useEffect(() => {
+    const fetchDetails = async () => {
+      try {
+        // 1. Get metadata
+        const metaResp = await fetch(`${API_BASE_URL}/metadata/anime/${id}`);
+        const metaData = await metaResp.json();
+        setAnime(metaData);
 
-      // 2. Get providers
-      const provResp = await fetch(`${API_BASE_URL}/providers`);
-      const { providers } = await provResp.json();
-      
-      // Try to find episodes in any provider
-      for (const provider of providers) {
-        const slug = metaData.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-        const epResp = await fetch(`${API_BASE_URL}/providers/${provider.key}/anime/${slug}/episodes`);
-        if (epResp.ok) {
-          const { episodes } = await epResp.json();
-          if (episodes.length > 0) {
-            setEpisodes(episodes);
-            break; 
+        // 2. Get providers
+        const provResp = await fetch(`${API_BASE_URL}/providers`);
+        const { providers }: { providers: ProviderDescriptor[] } = await provResp.json();
+       
+        // Try to find episodes in any provider
+        for (const provider of providers) {
+          const slug = metaData.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+          const epResp = await fetch(`${API_BASE_URL}/providers/${provider.key}/anime/${slug}/episodes`);
+          if (epResp.ok) {
+            const { episodes }: { episodes: ProviderEpisode[] } = await epResp.json();
+            if (episodes.length > 0) {
+              setEpisodes(episodes.map((episode: ProviderEpisode) => ({
+                ...episode,
+                providerKey: provider.key,
+                providerName: provider.name,
+              })));
+              break; 
+            }
           }
         }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setIsLoading(false);
       }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setIsLoading(false);
-    }
+    };
+
+    fetchDetails();
   }, [id]);
 
-  useEffect(() => { fetchDetails(); }, [fetchDetails]);
-
-  const fetchSources = async (episode: ProviderEpisode) => {
+  const fetchSources = async (episode: EpisodeWithProvider) => {
     setSelectedEpisode(episode);
     setSelectedSourceUrl(null);
+    setSelectedSourceType(null);
+    setSources([]);
     try {
-      const provResp = await fetch(`${API_BASE_URL}/providers`);
-      const { providers } = await provResp.json();
-      const provider = providers[0];
-      const sourceResp = await fetch(`${API_BASE_URL}/providers/${provider.key}/episodes/${episode.slug}/sources`);
+      const sourceResp = await fetch(`${API_BASE_URL}/providers/${episode.providerKey}/episodes/${episode.slug}/sources`);
       if (sourceResp.ok) {
         const { results } = await sourceResp.json();
         setSources(results);
@@ -213,7 +232,7 @@ const Detail = () => {
       <div className="p-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
           <section>
-            <h3 className="text-xl font-bold mb-4 flex items-center gap-2"><Play size={20} className="text-purple-500" /> {selectedEpisode ? `Episode ${selectedEpisode.number}` : 'Select an Episode'}</h3>
+            <h3 className="text-xl font-bold mb-4 flex items-center gap-2"><Play size={20} className="text-purple-500" /> {selectedEpisode ? `Episode ${selectedEpisode.number} - ${selectedEpisode.providerName}` : 'Select an Episode'}</h3>
             {selectedSourceUrl ? (
               <div className="aspect-video bg-black rounded-2xl overflow-hidden border border-zinc-800 shadow-2xl relative">
                 {selectedSourceType === 'embed' ? <iframe src={selectedSourceUrl} className="w-full h-full border-0" allowFullScreen allow="autoplay; encrypted-media" /> : <video key={selectedSourceUrl} src={selectedSourceUrl} controls autoPlay className="w-full h-full" />}
@@ -232,11 +251,15 @@ const Detail = () => {
 
           <section>
             <h3 className="text-xl font-bold mb-4">Episodes</h3>
-            <div className="grid grid-cols-8 sm:grid-cols-10 md:grid-cols-12 lg:grid-cols-16 gap-1">
-              {episodes.map((ep) => (
-                <button key={ep.slug} onClick={() => fetchSources(ep)} className={cn("aspect-square rounded-sm flex items-center justify-center font-bold text-[9px] transition-all border", selectedEpisode?.slug === ep.slug ? "bg-purple-600 border-purple-400 text-white shadow-[0_0_8px_rgba(147,51,234,0.6)]" : "bg-zinc-900 border-zinc-800 text-zinc-600 hover:text-white")}>{ep.number}</button>
-              ))}
-            </div>
+            {episodes.length > 0 ? (
+              <div className="grid grid-cols-8 sm:grid-cols-10 md:grid-cols-12 lg:grid-cols-16 gap-1">
+                {episodes.map((ep) => (
+                  <button key={`${ep.providerKey}-${ep.slug}`} onClick={() => fetchSources(ep)} className={cn("aspect-square rounded-sm flex items-center justify-center font-bold text-[9px] transition-all border", selectedEpisode?.slug === ep.slug && selectedEpisode.providerKey === ep.providerKey ? "bg-purple-600 border-purple-400 text-white shadow-[0_0_8px_rgba(147,51,234,0.6)]" : "bg-zinc-900 border-zinc-800 text-zinc-600 hover:text-white")}>{ep.number}</button>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-zinc-500">No episodes found in the available providers.</p>
+            )}
           </section>
         </div>
       </div>
@@ -263,7 +286,7 @@ function App() {
         const data: MetadataSearchResponse = await response.json();
         setResults(data.results);
       }
-    } catch (err) { setError("Search failed"); } finally { setIsLoading(false); }
+    } catch { setError("Search failed"); } finally { setIsLoading(false); }
   }, [searchQuery]);
 
   useEffect(() => {
@@ -275,7 +298,9 @@ function App() {
           const data = await response.json();
           setResults(data.results || []);
         }
-      } catch (e) {} finally { setIsLoading(false); }
+      } catch {
+        setError("Could not load trending anime");
+      } finally { setIsLoading(false); }
     };
     fetchTrending();
   }, []);
