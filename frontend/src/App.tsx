@@ -287,16 +287,16 @@ function App() {
 
                 <section>
                   <h3 className="text-xl font-bold mb-4">Episodes</h3>
-                  <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-1.5">
+                  <div className="grid grid-cols-8 sm:grid-cols-10 md:grid-cols-12 lg:grid-cols-16 xl:grid-cols-20 gap-1">
                     {episodes.map((ep) => (
                       <button
                         key={ep.slug}
                         onClick={() => fetchEpisodeSources(ep)}
                         className={cn(
-                          "aspect-square rounded-md flex items-center justify-center font-bold text-[10px] transition-all border",
+                          "aspect-square rounded-sm flex items-center justify-center font-bold text-[9px] transition-all border",
                           selectedEpisode?.slug === ep.slug 
-                            ? "bg-purple-600 border-purple-400 text-white shadow-[0_0_10px_rgba(147,51,234,0.5)]" 
-                            : "bg-zinc-900 border-zinc-800 text-zinc-500 hover:border-zinc-600 hover:text-white"
+                            ? "bg-purple-600 border-purple-400 text-white shadow-[0_0_8px_rgba(147,51,234,0.6)]" 
+                            : "bg-zinc-900 border-zinc-800 text-zinc-600 hover:border-zinc-500 hover:text-white"
                         )}
                       >
                         {ep.number}
